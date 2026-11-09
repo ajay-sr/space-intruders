@@ -12,8 +12,30 @@ endif()
 add_executable(space_intruders
     src/main.cpp
     src/StateManager.cpp
+    src/TitleScreen.cpp
+    src/GameScreen.cpp
+    src/Enemy.cpp
+    src/PixelText.cpp
 )
 target_compile_features(space_intruders PRIVATE cxx_std_17)
 set_target_properties(space_intruders PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_definitions(space_intruders PRIVATE SDL_MAIN_HANDLED)
 target_link_libraries(space_intruders PRIVATE SDL2::SDL2)
+
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(game_screen_tests
+        tests/GameScreenTests.cpp
+        src/StateManager.cpp
+        src/TitleScreen.cpp
+        src/GameScreen.cpp
+        src/Enemy.cpp
+        src/PixelText.cpp
+    )
+    target_compile_features(game_screen_tests PRIVATE cxx_std_17)
+    target_compile_definitions(game_screen_tests PRIVATE SDL_MAIN_HANDLED)
+    target_include_directories(game_screen_tests PRIVATE src)
+    target_link_libraries(game_screen_tests PRIVATE SDL2::SDL2)
+    add_test(NAME game_screen_tests COMMAND game_screen_tests)
+    set_tests_properties(game_screen_tests PROPERTIES ENVIRONMENT "SDL_VIDEODRIVER=dummy")
+endif()

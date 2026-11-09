@@ -20,15 +20,21 @@ void StateManager::setScreen(ScreenId screen) {
 }
 
 void StateManager::handleEvent(const SDL_Event& event) {
-    if (event.type != SDL_KEYDOWN || event.key.repeat) {
-        return;
+    if (event.type == SDL_KEYDOWN && !event.key.repeat) {
+        if (currentScreen_ == ScreenId::Title) {
+            setScreen(ScreenId::Game);
+            return;
+        }
+        if (event.key.keysym.sym == SDLK_ESCAPE) {
+            setScreen(ScreenId::Title);
+            return;
+        }
     }
+    screen_->handleEvent(event);
+}
 
-    if (currentScreen_ == ScreenId::Title && event.key.keysym.sym == SDLK_RETURN) {
-        setScreen(ScreenId::Game);
-    } else if (currentScreen_ == ScreenId::Game && event.key.keysym.sym == SDLK_ESCAPE) {
-        setScreen(ScreenId::Title);
-    }
+void StateManager::update(double deltaSeconds) {
+    screen_->update(deltaSeconds);
 }
 
 void StateManager::render(SDL_Renderer* renderer) const {

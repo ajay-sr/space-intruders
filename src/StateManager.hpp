@@ -16,6 +16,7 @@ public:
 
     void setScreen(ScreenId screen);
     void handleEvent(const SDL_Event& event);
+    void update(double deltaSeconds);
     void render(SDL_Renderer* renderer) const;
 
 private:

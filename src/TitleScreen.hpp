@@ -4,5 +4,5 @@
 
 class TitleScreen final : public Screen {
 public:
-    void render(SDL_Renderer*) const override {}
+    void render(SDL_Renderer* renderer) const override;
 };
