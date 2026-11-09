@@ -14,6 +14,10 @@ and are skipped during movement, edge checks, loss checks, and rendering.
 Hold Left or Right to move the player; press Up to fire. Only one bullet can be
 active at a time. It travels upward and disappears when it hits a living enemy
 or fully leaves the top of the screen. A hit marks that enemy dead.
+Clearing every enemy advances the level and displays its number for one second,
+then resets the player, enemy formation, movement direction, and bullet.
+Enemies start at 48 pixels per second and gain 12 pixels per second each level.
+Bullets travel upward at 960 pixels per second.
 The loop targets 60 FPS, with elapsed time used for the intro and movement.
 Close the window to quit.
 

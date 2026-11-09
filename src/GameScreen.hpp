@@ -20,6 +20,7 @@ public:
     void handleEvent(const SDL_Event& event) override;
     void render(SDL_Renderer* renderer) const override;
     bool hasLost() const { return lost_; }
+    int getLevel() const { return level_; }
     const EnemyMatrix& getEnemyGrid() const { return enemies_; }
     void markEnemyDead(std::size_t row, std::size_t column);
     bool isEnemyDead(std::size_t row, std::size_t column) const;
@@ -29,6 +30,7 @@ private:
     void moveEnemies(double deltaSeconds);
     void moveLivingEnemies(double deltaX, double deltaY);
     void updateCombat(double deltaSeconds);
+    void resetStage();
     static std::size_t enemyIndex(std::size_t row, std::size_t column);
 
     int level_ = 1;

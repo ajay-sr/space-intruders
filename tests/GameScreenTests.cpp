@@ -83,15 +83,18 @@ void runCombatTests(SDL_Renderer* renderer) {
 
     GameScreen shooting;
     shooting.update(1.0);
+    shooting.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
+    shooting.update(0.15);
+    shooting.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
     shooting.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(shooting.getBullet().has_value(), "Up arrow did not fire");
-    require(shooting.getBullet()->x == 478.0 && shooting.getBullet()->y == 464.0,
+    require(shooting.getBullet()->x == 430.0 && shooting.getBullet()->y == 464.0,
             "Bullet did not spawn above the player's center");
-    require(capture(renderer, shooting)[464 * 960 + 478] == White,
+    require(capture(renderer, shooting)[464 * 960 + 430] == White,
             "Bullet was not rendered");
     shooting.update(0.1);
     const auto firstBullet = *shooting.getBullet();
-    require(firstBullet.y < 417.0 && firstBullet.y > 415.0,
+    require(firstBullet.y < 369.0 && firstBullet.y > 367.0,
             "Bullet did not move upward");
     shooting.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(shooting.getBullet()->y == firstBullet.y,
@@ -117,28 +120,55 @@ void runCombatTests(SDL_Renderer* renderer) {
 
     GameScreen missedShot;
     missedShot.update(1.0);
-    for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
-        for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
-            missedShot.markEnemyDead(row, column);
-        }
-    }
+    missedShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
+    missedShot.update(2.0);
+    missedShot.handleEvent(keyEvent(SDL_KEYUP, SDLK_RIGHT));
     missedShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
-    missedShot.update(0.95);
+    missedShot.update(0.475);
     require(missedShot.getBullet().has_value(), "Bullet expired before leaving the screen");
-    missedShot.update(0.05);
+    missedShot.update(0.025);
     require(!missedShot.getBullet(), "Bullet remained beyond the top of the screen");
     missedShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(missedShot.getBullet().has_value(), "Could not fire again after missing");
 
     GameScreen slowFrame;
     slowFrame.update(1.0);
+    slowFrame.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
+    slowFrame.update(0.15);
+    slowFrame.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
     slowFrame.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     slowFrame.update(1.0);
     require(slowFrame.isEnemyDead(3, 7) && !slowFrame.getBullet(),
             "Fast bullet skipped an enemy during a slow frame");
 
+    GameScreen finalShot;
+    finalShot.update(1.0);
+    finalShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
+    finalShot.update(0.15);
+    finalShot.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
+    for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
+        for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
+            if (row != 3 || column != 7) {
+                finalShot.markEnemyDead(row, column);
+            }
+        }
+    }
+    require(finalShot.getLevel() == 1, "Level advanced with a living enemy remaining");
+    finalShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
+    finalShot.update(5.0);
+    require(finalShot.getLevel() == 2 && !finalShot.getBullet() && !finalShot.hasLost(),
+            "Final bullet hit did not start the next level cleanly");
+    const auto nextLevelIntro = capture(renderer, finalShot);
+    require(std::count(nextLevelIntro.begin(), nextLevelIntro.end(), Red) == 0,
+            "Remaining frame time skipped the next level intro");
+    finalShot.update(0.999);
+    require(capture(renderer, finalShot) == nextLevelIntro,
+            "Next level intro lasted less than one second");
+    finalShot.update(0.001);
+    checkPlayerX(renderer, finalShot, 464);
+
     GameScreen lost;
-    lost.update(30.0);
+    lost.update(60.0);
     lost.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(!lost.getBullet(), "Fired after Game Over");
     lost.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
@@ -210,20 +240,20 @@ void runTests(SDL_Renderer* renderer) {
         require(frame[405 * 960 + x] == White, "Missing white loss line");
     }
 
-    game.update(1.0);
+    game.update(2.0);
     checkGrid(capture(renderer, game), 112, 32);
-    game.update(4.25);
+    game.update(8.5);
     checkGrid(capture(renderer, game), 520, 80);
-    game.update(0.5);
+    game.update(1.0);
     checkGrid(capture(renderer, game), 472, 80);
-    game.update(4.75);
+    game.update(9.5);
     checkGrid(capture(renderer, game), 16, 128);
 
-    game.update(10.5);
+    game.update(21.0);
     frame = capture(renderer, game);
     checkGrid(frame, 16, 224);
     require(!game.hasLost(), "Lost before enemies crossed the line");
-    game.update(5.25);
+    game.update(10.5);
     require(game.hasLost(), "Crossing the line did not cause a loss");
     const auto lostFrame = capture(renderer, game);
     require(lostFrame[253 * 960 + 352] == White, "Missing Game Over lettering");
@@ -264,7 +294,7 @@ void runTests(SDL_Renderer* renderer) {
     require(std::count(frame.begin(), frame.end(), Red) == 31 * 32 * 32,
             "Dead enemy was rendered");
     require(frame[32 * 960 + 16] == Black, "Dead enemy remained visible");
-    withDeadEnemy.update(5.75);
+    withDeadEnemy.update(11.5);
     const auto deadPosition = withDeadEnemy.getEnemyGrid()[0][0].getCoordinates();
     require(deadPosition.x == 16.0 && deadPosition.y == 32.0,
             "Dead enemy moved horizontally or descended");
@@ -277,10 +307,10 @@ void runTests(SDL_Renderer* renderer) {
     for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
         deadEdge.markEnemyDead(row, GameScreen::Columns - 1);
     }
-    deadEdge.update(5.25);
+    deadEdge.update(10.5);
     require(deadEdge.getEnemyGrid()[0][0].getCoordinates().y == 32.0,
             "Dead edge column caused an early turn");
-    deadEdge.update(0.75);
+    deadEdge.update(1.5);
     const auto afterTurn = deadEdge.getEnemyGrid()[0][0].getCoordinates();
     require(afterTurn.x == 560.0 && afterTurn.y == 80.0,
             "Formation did not turn at its living edge");
@@ -290,34 +320,64 @@ void runTests(SDL_Renderer* renderer) {
     for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
         deadBottom.markEnemyDead(GameScreen::Rows - 1, column);
     }
-    deadBottom.update(26.25);
+    deadBottom.update(52.5);
     require(!deadBottom.hasLost(), "Dead bottom row caused a loss");
     require(deadBottom.getEnemyGrid()[3][0].getCoordinates().y == 176.0,
             "Dead bottom row descended");
     require(deadBottom.getEnemyGrid()[2][0].getCoordinates().y == 368.0,
             "Living bottom row did not descend");
-    deadBottom.update(5.25);
+    deadBottom.update(10.5);
     require(deadBottom.hasLost(), "Living enemy crossing the line did not cause loss");
 
     GameScreen allDead;
     allDead.update(1.0);
+    allDead.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
+    allDead.update(11.5);
+    allDead.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
+    require(allDead.getBullet().has_value(), "Stage reset test did not have an active bullet");
     for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
         for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
             allDead.markEnemyDead(row, column);
         }
     }
-    const auto emptyFormation = capture(renderer, allDead);
-    allDead.update(1000.0);
-    require(!allDead.hasLost(), "Empty formation caused a loss");
-    require(capture(renderer, allDead) == emptyFormation,
-            "Empty formation moved or rendered dead enemies");
+    require(allDead.getLevel() == 2, "Clearing all enemies did not increment the level");
+    require(!allDead.hasLost() && !allDead.getBullet(), "Stage reset retained loss or bullet state");
+    const auto levelTwoIntro = capture(renderer, allDead);
+    require(std::count(levelTwoIntro.begin(), levelTwoIntro.end(), Red) == 0,
+            "Enemies rendered during the next level intro");
+    require(levelTwoIntro[250 * 960 + 579] == White,
+            "Intro did not display the new level number");
+    allDead.markEnemyDead(0, 0);
+    require(allDead.getLevel() == 2, "Enemy deaths during the intro advanced the level");
+    allDead.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
+    require(!allDead.getBullet(), "Fired during the next level intro");
+    allDead.update(0.999);
+    require(capture(renderer, allDead) == levelTwoIntro,
+            "New level did not show its intro for one second");
+    allDead.update(0.001);
+    checkGrid(capture(renderer, allDead), 16, 32);
+    checkPlayerX(renderer, allDead, 464);
     for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
         for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
             const auto position = allDead.getEnemyGrid()[row][column].getCoordinates();
             require(position.x == 16 + column * 56 && position.y == 32 + row * 48,
-                    "Dead matrix coordinates were changed");
+                    "New level did not reset matrix coordinates");
+            require(!allDead.isEnemyDead(row, column), "New level retained dead enemy flags");
         }
     }
+    allDead.update(0.5);
+    checkGrid(capture(renderer, allDead), 46, 32);
+    checkPlayerX(renderer, allDead, 464);
+    for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
+        for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
+            allDead.markEnemyDead(row, column);
+        }
+    }
+    require(allDead.getLevel() == 3, "Subsequent clears did not increment the level again");
+    allDead.update(1.0);
+    checkGrid(capture(renderer, allDead), 16, 32);
+    allDead.update(0.5);
+    checkGrid(capture(renderer, allDead), 52, 32);
     bool invalidIndexRejected = false;
     try {
         allDead.markEnemyDead(0, GameScreen::Columns);

@@ -15,9 +15,10 @@ constexpr int LossLine = ScreenHeight * 3 / 4;
 constexpr int ColumnSpacing = 56;
 constexpr int RowSpacing = 48;
 constexpr int EdgeMargin = 16;
-constexpr double EnemySpeed = 96.0; // Pixels per second, independent of frame rate.
+constexpr double InitialEnemySpeed = 48.0; // Pixels per second.
+constexpr double EnemySpeedPerLevel = 12.0;
 constexpr double PlayerSpeed = 320.0;
-constexpr double BulletSpeed = 480.0;
+constexpr double BulletSpeed = 960.0;
 constexpr double CombatStep = 1.0 / 120.0;
 } // namespace
 
@@ -56,7 +57,27 @@ std::size_t GameScreen::enemyIndex(std::size_t row, std::size_t column) {
 }
 
 void GameScreen::markEnemyDead(std::size_t row, std::size_t column) {
-    deadEnemies_[enemyIndex(row, column)] = true;
+    const auto index = enemyIndex(row, column);
+    if (!player_ || lost_) {
+        return;
+    }
+    deadEnemies_[index] = true;
+    if (std::all_of(deadEnemies_.begin(), deadEnemies_.end(), [](bool dead) { return dead; })) {
+        ++level_;
+        resetStage();
+    }
+}
+
+void GameScreen::resetStage() {
+    introSeconds_ = 0.0;
+    player_.reset();
+    playerX_ = 464.0;
+    movingLeft_ = movingRight_ = false;
+    bullet_.reset();
+    enemies_ = EnemyMatrix{};
+    deadEnemies_.fill(false);
+    enemyDirection_ = 1;
+    lost_ = false;
 }
 
 bool GameScreen::isEnemyDead(std::size_t row, std::size_t column) const {
@@ -96,6 +117,9 @@ void GameScreen::updateCombat(double deltaSeconds) {
         const double step = std::min(deltaSeconds, CombatStep);
         bullet_->y -= BulletSpeed * step;
         moveEnemies(step);
+        if (!player_) {
+            return; // A cleared stage gets its full intro on subsequent updates.
+        }
         if (bullet_ && bullet_->y + Bullet::Height <= 0.0) {
             bullet_.reset();
         }
@@ -123,6 +147,9 @@ void GameScreen::moveLivingEnemies(double deltaX, double deltaY) {
                 && bullet_->y + Bullet::Height > std::min(position.y, updated.y)) {
                 markEnemyDead(row, column);
                 bullet_.reset();
+                if (!player_) {
+                    return;
+                }
                 continue;
             }
             // Check every live enemy immediately after either kind of movement.
@@ -134,8 +161,9 @@ void GameScreen::moveLivingEnemies(double deltaX, double deltaY) {
 }
 
 void GameScreen::moveEnemies(double deltaSeconds) {
-    double distanceRemaining = EnemySpeed * deltaSeconds;
-    while (distanceRemaining > 0.0 && !lost_) {
+    const double speed = InitialEnemySpeed + (level_ - 1) * EnemySpeedPerLevel;
+    double distanceRemaining = speed * deltaSeconds;
+    while (player_ && distanceRemaining > 0.0 && !lost_) {
         double left = std::numeric_limits<double>::infinity();
         double right = -std::numeric_limits<double>::infinity();
         for (std::size_t row = 0; row < Rows; ++row) {
@@ -155,6 +183,9 @@ void GameScreen::moveEnemies(double deltaSeconds) {
             ? ScreenWidth - EdgeMargin - right : left - EdgeMargin);
         const double step = std::min(distanceRemaining, distanceToEdge);
         moveLivingEnemies(enemyDirection_ * step, 0.0);
+        if (!player_) {
+            return;
+        }
         distanceRemaining -= step;
 
         if (!lost_ && step == distanceToEdge) {
