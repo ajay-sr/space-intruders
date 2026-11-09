@@ -17,35 +17,19 @@ constexpr int RowSpacing = 48;
 constexpr int EdgeMargin = 16;
 constexpr double InitialEnemySpeed = 48.0; // Pixels per second.
 constexpr double EnemySpeedPerLevel = 12.0;
-constexpr double PlayerSpeed = 320.0;
 constexpr double BulletSpeed = 960.0;
 constexpr double CombatStep = 1.0 / 120.0;
 } // namespace
 
 void GameScreen::handleEvent(const SDL_Event& event) {
-    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-        movingLeft_ = movingRight_ = false;
+    if (lost_) {
         return;
     }
-    if (lost_ || (event.type != SDL_KEYDOWN && event.type != SDL_KEYUP)) {
-        return;
-    }
-    const bool pressed = event.type == SDL_KEYDOWN;
-    switch (event.key.keysym.sym) {
-    case SDLK_LEFT:
-        movingLeft_ = pressed;
-        break;
-    case SDLK_RIGHT:
-        movingRight_ = pressed;
-        break;
-    case SDLK_UP:
-        if (pressed && !event.key.repeat && player_ && !bullet_) {
-            bullet_ = Bullet{playerX_ + (player_->bounds.w - Bullet::Width) / 2.0,
-                             static_cast<double>(player_->bounds.y - Bullet::Height)};
-        }
-        break;
-    default:
-        break;
+    player_.handleEvent(event);
+    if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_UP
+        && !event.key.repeat && stageActive_ && !bullet_) {
+        const auto muzzle = player_.getFiringPosition();
+        bullet_ = Bullet{muzzle.x - Bullet::Width / 2.0, muzzle.y - Bullet::Height};
     }
 }
 
@@ -58,7 +42,7 @@ std::size_t GameScreen::enemyIndex(std::size_t row, std::size_t column) {
 
 void GameScreen::markEnemyDead(std::size_t row, std::size_t column) {
     const auto index = enemyIndex(row, column);
-    if (!player_ || lost_) {
+    if (!stageActive_ || lost_) {
         return;
     }
     deadEnemies_[index] = true;
@@ -71,8 +55,7 @@ void GameScreen::markEnemyDead(std::size_t row, std::size_t column) {
 void GameScreen::resetStage() {
     introSeconds_ = 0.0;
     player_.reset();
-    playerX_ = 464.0;
-    movingLeft_ = movingRight_ = false;
+    stageActive_ = false;
     bullet_.reset();
     enemies_ = EnemyMatrix{};
     deadEnemies_.fill(false);
@@ -89,12 +72,12 @@ void GameScreen::update(double deltaSeconds) {
         return;
     }
 
-    if (!player_) {
+    if (!stageActive_) {
         introSeconds_ += deltaSeconds;
         if (introSeconds_ < 1.0) {
             return;
         }
-        player_ = Entity{{464, 476, 32, 32}, {255, 255, 255, 255}};
+        stageActive_ = true;
         for (std::size_t row = 0; row < Rows; ++row) {
             for (std::size_t column = 0; column < Columns; ++column) {
                 enemies_[row][column].updateCoordinates(
@@ -104,10 +87,7 @@ void GameScreen::update(double deltaSeconds) {
         deltaSeconds = introSeconds_ - 1.0;
     }
 
-    const int direction = static_cast<int>(movingRight_) - static_cast<int>(movingLeft_);
-    playerX_ = std::clamp(playerX_ + direction * PlayerSpeed * deltaSeconds,
-                         0.0, static_cast<double>(ScreenWidth - player_->bounds.w));
-    player_->bounds.x = static_cast<int>(std::lround(playerX_));
+    player_.update(deltaSeconds);
     updateCombat(deltaSeconds);
 }
 
@@ -117,7 +97,7 @@ void GameScreen::updateCombat(double deltaSeconds) {
         const double step = std::min(deltaSeconds, CombatStep);
         bullet_->y -= BulletSpeed * step;
         moveEnemies(step);
-        if (!player_) {
+        if (!stageActive_) {
             return; // A cleared stage gets its full intro on subsequent updates.
         }
         if (bullet_ && bullet_->y + Bullet::Height <= 0.0) {
@@ -147,7 +127,7 @@ void GameScreen::moveLivingEnemies(double deltaX, double deltaY) {
                 && bullet_->y + Bullet::Height > std::min(position.y, updated.y)) {
                 markEnemyDead(row, column);
                 bullet_.reset();
-                if (!player_) {
+                if (!stageActive_) {
                     return;
                 }
                 continue;
@@ -163,7 +143,7 @@ void GameScreen::moveLivingEnemies(double deltaX, double deltaY) {
 void GameScreen::moveEnemies(double deltaSeconds) {
     const double speed = InitialEnemySpeed + (level_ - 1) * EnemySpeedPerLevel;
     double distanceRemaining = speed * deltaSeconds;
-    while (player_ && distanceRemaining > 0.0 && !lost_) {
+    while (stageActive_ && distanceRemaining > 0.0 && !lost_) {
         double left = std::numeric_limits<double>::infinity();
         double right = -std::numeric_limits<double>::infinity();
         for (std::size_t row = 0; row < Rows; ++row) {
@@ -183,7 +163,7 @@ void GameScreen::moveEnemies(double deltaSeconds) {
             ? ScreenWidth - EdgeMargin - right : left - EdgeMargin);
         const double step = std::min(distanceRemaining, distanceToEdge);
         moveLivingEnemies(enemyDirection_ * step, 0.0);
-        if (!player_) {
+        if (!stageActive_) {
             return;
         }
         distanceRemaining -= step;
@@ -197,16 +177,14 @@ void GameScreen::moveEnemies(double deltaSeconds) {
 }
 
 void GameScreen::render(SDL_Renderer* renderer) const {
-    if (!player_) {
+    if (!stageActive_) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         drawCenteredText(renderer, "Level " + std::to_string(level_), ScreenWidth,
                          (ScreenHeight - 7 * 6) / 2, 6);
         return;
     }
 
-    const SDL_Color color = player_->color;
-    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
-    SDL_RenderFillRect(renderer, &player_->bounds);
+    player_.render(renderer);
     if (bullet_) {
         const SDL_Rect bounds{static_cast<int>(std::lround(bullet_->x)),
                               static_cast<int>(std::lround(bullet_->y)),

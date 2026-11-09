@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Screen.hpp"
-#include "Entity.hpp"
+#include "PlayerShip.hpp"
 #include "Enemy.hpp"
 #include "Bullet.hpp"
 
@@ -35,10 +35,8 @@ private:
 
     int level_ = 1;
     double introSeconds_ = 0.0;
-    std::optional<Entity> player_;
-    double playerX_ = 464.0;
-    bool movingLeft_ = false;
-    bool movingRight_ = false;
+    PlayerShip player_;
+    bool stageActive_ = false;
     std::optional<Bullet> bullet_;
     EnemyMatrix enemies_{};
     // Row-major flags: row * Columns + column corresponds to enemies_[row][column].

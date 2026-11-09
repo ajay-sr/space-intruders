@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <exception>
 #include <thread>
 
 int main(int, char**) {
@@ -43,41 +44,49 @@ int main(int, char**) {
         return 1;
     }
 
-    StateManager states;
-    using Clock = std::chrono::steady_clock;
-    const auto frameDuration = std::chrono::duration_cast<Clock::duration>(
-        std::chrono::duration<double>(1.0 / 60.0));
-    auto previousFrame = Clock::now();
-    auto nextFrame = previousFrame;
-    bool running = true;
-    while (running) {
-        const auto frameStart = Clock::now();
-        const double deltaSeconds = std::chrono::duration<double>(
-            frameStart - previousFrame).count();
-        previousFrame = frameStart;
+    int result = 0;
+    // Screens own textures and must be destroyed before their renderer.
+    try {
+        StateManager states;
+        using Clock = std::chrono::steady_clock;
+        const auto frameDuration = std::chrono::duration_cast<Clock::duration>(
+            std::chrono::duration<double>(1.0 / 60.0));
+        auto previousFrame = Clock::now();
+        auto nextFrame = previousFrame;
+        bool running = true;
+        while (running) {
+            const auto frameStart = Clock::now();
+            const double deltaSeconds = std::chrono::duration<double>(
+                frameStart - previousFrame).count();
+            previousFrame = frameStart;
 
-        // Update before input so a newly started level gets a full intro.
-        states.update(deltaSeconds);
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                running = false;
-            } else {
-                states.handleEvent(event);
+            // Update before input so a newly started level gets a full intro.
+            states.update(deltaSeconds);
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                if (event.type == SDL_QUIT) {
+                    running = false;
+                } else {
+                    states.handleEvent(event);
+                }
             }
+
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+            SDL_RenderClear(renderer);
+            states.render(renderer);
+            SDL_RenderPresent(renderer);
+            // Pace complete frames, including processing and rendering, to 60 FPS.
+            nextFrame = std::max(nextFrame + frameDuration, Clock::now());
+            std::this_thread::sleep_until(nextFrame);
         }
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-        states.render(renderer);
-        SDL_RenderPresent(renderer);
-        // Pace complete frames, including processing and rendering, to 60 FPS.
-        nextFrame = std::max(nextFrame + frameDuration, Clock::now());
-        std::this_thread::sleep_until(nextFrame);
+    } catch (const std::exception& error) {
+        SDL_Log("Game failed: %s", error.what());
+        result = 1;
     }
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
-    return 0;
+    return result;
 }

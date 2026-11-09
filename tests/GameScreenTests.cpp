@@ -18,6 +18,7 @@ void require(bool condition, const char* message) {
 using Frame = std::vector<Uint32>;
 constexpr Uint32 Red = 0xff5050ff;
 constexpr Uint32 White = 0xffffffff;
+constexpr Uint32 Green = 0x00ff00ff;
 constexpr Uint32 Black = 0x000000ff;
 
 Frame capture(SDL_Renderer* renderer, const Screen& screen) {
@@ -42,8 +43,8 @@ SDL_Event keyEvent(Uint32 type, SDL_Keycode key, bool repeat = false) {
 void checkPlayerX(SDL_Renderer* renderer, const GameScreen& game, int x) {
     const auto frame = capture(renderer, game);
     for (int column = 0; column < 960; ++column) {
-        require(frame[492 * 960 + column] ==
-                    (column >= x && column < x + 32 ? White : Black),
+        require(frame[506 * 960 + column] ==
+                    (column >= x && column < x + 30 ? Green : Black),
                 "Player horizontal movement mismatch");
     }
 }
@@ -55,23 +56,23 @@ void runCombatTests(SDL_Renderer* renderer) {
     movement.update(1.0);
     movement.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
     movement.update(0.5);
-    checkPlayerX(renderer, movement, 304);
+    checkPlayerX(renderer, movement, 305);
     movement.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
     movement.update(0.25);
-    checkPlayerX(renderer, movement, 304);
+    checkPlayerX(renderer, movement, 305);
     movement.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
     movement.update(0.5);
-    checkPlayerX(renderer, movement, 464);
+    checkPlayerX(renderer, movement, 465);
     movement.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
     movement.update(0.5);
-    checkPlayerX(renderer, movement, 464);
+    checkPlayerX(renderer, movement, 465);
     movement.handleEvent(keyEvent(SDL_KEYUP, SDLK_RIGHT));
     movement.update(10.0);
     checkPlayerX(renderer, movement, 0);
     movement.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
     movement.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
     movement.update(10.0);
-    checkPlayerX(renderer, movement, 928);
+    checkPlayerX(renderer, movement, 930);
     SDL_Event focusLost{};
     focusLost.type = SDL_WINDOWEVENT;
     focusLost.window.event = SDL_WINDOWEVENT_FOCUS_LOST;
@@ -79,7 +80,7 @@ void runCombatTests(SDL_Renderer* renderer) {
     movement.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_LEFT));
     movement.handleEvent(focusLost);
     movement.update(0.1);
-    checkPlayerX(renderer, movement, 928);
+    checkPlayerX(renderer, movement, 930);
 
     GameScreen shooting;
     shooting.update(1.0);
@@ -88,13 +89,13 @@ void runCombatTests(SDL_Renderer* renderer) {
     shooting.handleEvent(keyEvent(SDL_KEYUP, SDLK_LEFT));
     shooting.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(shooting.getBullet().has_value(), "Up arrow did not fire");
-    require(shooting.getBullet()->x == 430.0 && shooting.getBullet()->y == 464.0,
+    require(shooting.getBullet()->x == 430.0 && shooting.getBullet()->y == 478.0,
             "Bullet did not spawn above the player's center");
-    require(capture(renderer, shooting)[464 * 960 + 430] == White,
+    require(capture(renderer, shooting)[478 * 960 + 430] == White,
             "Bullet was not rendered");
     shooting.update(0.1);
     const auto firstBullet = *shooting.getBullet();
-    require(firstBullet.y < 369.0 && firstBullet.y > 367.0,
+    require(firstBullet.y < 383.0 && firstBullet.y > 381.0,
             "Bullet did not move upward");
     shooting.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
     require(shooting.getBullet()->y == firstBullet.y,
@@ -124,7 +125,7 @@ void runCombatTests(SDL_Renderer* renderer) {
     missedShot.update(2.0);
     missedShot.handleEvent(keyEvent(SDL_KEYUP, SDLK_RIGHT));
     missedShot.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_UP));
-    missedShot.update(0.475);
+    missedShot.update(0.5);
     require(missedShot.getBullet().has_value(), "Bullet expired before leaving the screen");
     missedShot.update(0.025);
     require(!missedShot.getBullet(), "Bullet remained beyond the top of the screen");
@@ -165,7 +166,7 @@ void runCombatTests(SDL_Renderer* renderer) {
     require(capture(renderer, finalShot) == nextLevelIntro,
             "Next level intro lasted less than one second");
     finalShot.update(0.001);
-    checkPlayerX(renderer, finalShot, 464);
+    checkPlayerX(renderer, finalShot, 465);
 
     GameScreen lost;
     lost.update(60.0);
@@ -173,7 +174,7 @@ void runCombatTests(SDL_Renderer* renderer) {
     require(!lost.getBullet(), "Fired after Game Over");
     lost.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_RIGHT));
     lost.update(1.0);
-    checkPlayerX(renderer, lost, 464);
+    checkPlayerX(renderer, lost, 465);
 
     StateManager states;
     states.handleEvent(keyEvent(SDL_KEYDOWN, SDLK_SPACE));
@@ -187,7 +188,7 @@ void runCombatTests(SDL_Renderer* renderer) {
     SDL_RenderClear(renderer);
     states.render(renderer);
     Uint32 pixel = 0;
-    SDL_Rect bulletLocation{558, 464, 1, 1};
+    SDL_Rect bulletLocation{558, 478, 1, 1};
     require(SDL_RenderReadPixels(renderer, &bulletLocation, SDL_PIXELFORMAT_RGBA8888,
                                  &pixel, sizeof(pixel)) == 0 && pixel == White,
             "State manager did not forward movement, key release, or fire input");
@@ -235,7 +236,10 @@ void runTests(SDL_Renderer* renderer) {
     game.update(0.001);
     frame = capture(renderer, game);
     checkGrid(frame, 16, 32);
-    require(frame[492 * 960 + 480] == White, "Missing player");
+    require(frame[492 * 960 + 480] == Green, "Missing green ship nose");
+    require(frame[492 * 960 + 465] == Black, "Ship nose row should have empty corners");
+    require(frame[498 * 960 + 472] == Green, "Missing ship middle row");
+    require(frame[506 * 960 + 465] == Green, "Missing ship wing");
     for (int x = 0; x < 960; ++x) {
         require(frame[405 * 960 + x] == White, "Missing white loss line");
     }
@@ -356,7 +360,7 @@ void runTests(SDL_Renderer* renderer) {
             "New level did not show its intro for one second");
     allDead.update(0.001);
     checkGrid(capture(renderer, allDead), 16, 32);
-    checkPlayerX(renderer, allDead, 464);
+    checkPlayerX(renderer, allDead, 465);
     for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
         for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
             const auto position = allDead.getEnemyGrid()[row][column].getCoordinates();
@@ -367,7 +371,7 @@ void runTests(SDL_Renderer* renderer) {
     }
     allDead.update(0.5);
     checkGrid(capture(renderer, allDead), 46, 32);
-    checkPlayerX(renderer, allDead, 464);
+    checkPlayerX(renderer, allDead, 465);
     for (std::size_t row = 0; row < GameScreen::Rows; ++row) {
         for (std::size_t column = 0; column < GameScreen::Columns; ++column) {
             allDead.markEnemyDead(row, column);
